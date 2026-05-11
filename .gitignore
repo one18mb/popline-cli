@@ -1,4 +1,3 @@
 pln
 pln.exe
-*.test
-*.out
+*.o
