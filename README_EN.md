@@ -65,3 +65,8 @@ version: 2
 | `popline_parser.c` | PopLine parser |
 | `popline_json.c` | JSON conversion |
 | `cjson/cJSON.c` | Bundled cJSON library |
+
+## Acknowledgments
+This project was developed with the assistance of:
+- [Claude Code](https://claude.ai) (Anthropic)
+- [DeepSeek](https://deepseek.com) (DeepSeek)
