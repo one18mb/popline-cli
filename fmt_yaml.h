@@ -1,0 +1,10 @@
+/* fmt_yaml.h — YAML ↔ PopLine conversion declarations (stub) */
+#ifndef FMT_YAML_H
+#define FMT_YAML_H
+
+#include "popline.h"
+
+pln_value_t *fmt_yaml_parse(const char *text);   /* YAML text → PopLine DOM */
+char       *fmt_yaml_dumps(pln_value_t *v);      /* PopLine DOM → YAML text */
+
+#endif

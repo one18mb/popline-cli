@@ -1,9 +1,19 @@
-/* popline-cli — `pln` command: JSON ↔ PopLine converter & validator */
+/* popline-cli — `pln` command: multi-format converter & validator */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "popline.h"
-#include "cjson/cJSON.h"
+#include "popline_json.h"
+#include "fmt_ini.h"
+#include "fmt_yaml.h"
+#include "fmt_toml.h"
+/* XML uses expat — may not be available on all platforms */
+#if __has_include(<expat.h>)
+  #include "fmt_xml.h"
+  #define HAVE_XML 1
+#endif
+
+/* ─── File I/O ───────────────────────────────────────────── */
 
 static char *read_file(const char *path, int *len) {
     FILE *f = fopen(path, "rb");
@@ -25,48 +35,108 @@ static void write_file(const char *path, const char *data, int len) {
     fclose(f);
 }
 
-static int has_ext(const char *path, const char *ext) {
-    int plen = (int)strlen(path), elen = (int)strlen(ext);
-    return plen >= elen && strcmp(path + plen - elen, ext) == 0;
-}
+/* ─── pln to <format> <in.pln> <out.ext> ───────────────── */
 
-static void cmd_convert(int argc, char **argv) {
-    if (argc < 2) {
-        fprintf(stderr, "usage: pln convert <input> <output>\n"); exit(1);
+static void cmd_to(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "usage: pln to <format> <in.pln> <out.ext>\n");
+        exit(1);
     }
-    const char *inpath = argv[0], *outpath = argv[1];
+    const char *fmt   = argv[0];
+    const char *inpath  = argv[1];
+    const char *outpath = argv[2];
+
     int len;
     char *data = read_file(inpath, &len);
-
-    if (has_ext(inpath, ".json")) {
-        /* JSON → PopLine */
-        cJSON *cj = cJSON_Parse(data);
-        if (!cj) { fprintf(stderr, "error: invalid JSON\n"); exit(1); }
-        pln_value_t *v = pln_loads_json(data);
-        cJSON_Delete(cj);
-        if (!v) { fprintf(stderr, "error: JSON conversion failed\n"); exit(1); }
-        char *out = pln_dumps(v);
-        write_file(outpath, out, (int)strlen(out));
-        free(out);
-        pln_value_free(v);
-    } else {
-        /* PopLine → JSON (default) */
-        pln_value_t *v = pln_loads(data);
-        if (!v) { fprintf(stderr, "error: invalid PopLine\n"); exit(1); }
-        char *out = pln_dumps_json(v);
-        if (!out) { fprintf(stderr, "error: JSON conversion failed\n"); exit(1); }
-        int olen = (int)strlen(out);
-        out[olen] = '\n';
-        write_file(outpath, out, olen + 1);
-        free(out);
-        pln_value_free(v);
-    }
+    pln_value_t *v = pln_loads(data);
     free(data);
+    if (!v) { fprintf(stderr, "error: invalid PopLine\n"); exit(1); }
+
+    char *out = NULL;
+    if (strcmp(fmt, "json") == 0) {
+        out = pln_dumps_json(v);
+    } else if (strcmp(fmt, "yaml") == 0) {
+        out = fmt_yaml_dumps(v);
+    } else if (strcmp(fmt, "toml") == 0) {
+        out = fmt_toml_dumps(v);
+    } else if (strcmp(fmt, "ini") == 0) {
+        out = fmt_ini_dumps(v);
+    } else if (strcmp(fmt, "xml") == 0) {
+#ifdef HAVE_XML
+        out = fmt_xml_dumps(v);
+#else
+        fprintf(stderr, "error: XML not available on this platform\n");
+        pln_value_free(v); exit(1);
+#endif
+    } else {
+        fprintf(stderr, "error: unknown format '%s'\n", fmt);
+        fprintf(stderr, "supported formats: json, yaml, toml, ini, xml\n");
+        pln_value_free(v);
+        exit(1);
+    }
+
+    if (!out) { fprintf(stderr, "error: conversion failed\n"); exit(1); }
+    write_file(outpath, out, (int)strlen(out));
+    free(out);
+    pln_value_free(v);
     printf("converted %s → %s\n", inpath, outpath);
 }
 
+/* ─── pln from <format> <in.ext> <out.pln> ─────────────── */
+
+static void cmd_from(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "usage: pln from <format> <in.ext> <out.pln>\n");
+        exit(1);
+    }
+    const char *fmt   = argv[0];
+    const char *inpath  = argv[1];
+    const char *outpath = argv[2];
+
+    int len;
+    char *data = read_file(inpath, &len);
+
+    pln_value_t *v = NULL;
+    if (strcmp(fmt, "json") == 0) {
+        v = pln_loads_json(data);
+    } else if (strcmp(fmt, "yaml") == 0) {
+        v = fmt_yaml_parse(data);
+    } else if (strcmp(fmt, "toml") == 0) {
+        v = fmt_toml_parse(data);
+    } else if (strcmp(fmt, "ini") == 0) {
+        v = fmt_ini_parse(data);
+    } else if (strcmp(fmt, "xml") == 0) {
+#ifdef HAVE_XML
+        v = fmt_xml_parse(data);
+#else
+        fprintf(stderr, "error: XML not available on this platform\n");
+        free(data); exit(1);
+#endif
+    } else {
+        fprintf(stderr, "error: unknown format '%s'\n", fmt);
+        fprintf(stderr, "supported formats: json, yaml, toml, ini, xml\n");
+        free(data);
+        exit(1);
+    }
+
+    free(data);
+    if (!v) { fprintf(stderr, "error: conversion failed\n"); exit(1); }
+
+    char *out = pln_dumps(v);
+    if (!out) { fprintf(stderr, "error: PopLine serialization failed\n"); exit(1); }
+    write_file(outpath, out, (int)strlen(out));
+    free(out);
+    pln_value_free(v);
+    printf("converted %s → %s\n", inpath, outpath);
+}
+
+/* ─── pln validate <file> ────────────────────────────────── */
+
 static void cmd_validate(int argc, char **argv) {
-    if (argc < 1) { fprintf(stderr, "usage: pln validate <file>\n"); exit(1); }
+    if (argc < 1) {
+        fprintf(stderr, "usage: pln validate <file>\n");
+        exit(1);
+    }
     int len;
     char *data = read_file(argv[0], &len);
     pln_value_t *v = pln_loads(data);
@@ -76,31 +146,41 @@ static void cmd_validate(int argc, char **argv) {
     printf("valid\n");
 }
 
+/* ─── Help ────────────────────────────────────────────────── */
+
 static void usage(void) {
     printf(
         "pln — PopLine command-line tool\n"
         "\n"
         "Usage:\n"
-        "  pln convert <input> <output>   Convert between JSON and PopLine\n"
-        "  pln validate <file>            Validate a PopLine file\n"
-        "  pln help                       Show this help\n"
+        "  pln to <format> <in.pln> <out.ext>       PopLine → format\n"
+        "  pln from <format> <in.ext> <out.pln>     format → PopLine\n"
+        "  pln validate <file>                      Validate a PopLine file\n"
+        "  pln help                                 Show this help\n"
+        "\n"
+        "Supported formats:\n"
+        "  json   (fully supported)\n"
+        "  yaml   (fully supported)\n"
+        "  toml   (fully supported)\n"
+        "  ini    (fully supported)\n"
+        "  xml    (fully supported, requires expat)\n"
         "\n"
         "Examples:\n"
-        "  pln convert package.json package.pln    JSON → PopLine\n"
-        "  pln convert config.pln config.json      PopLine → JSON\n"
-        "  pln validate schema.pln                 Validate only\n"
-        "\n"
-        "Extension rules:\n"
-        "  .json → .pln   JSON to PopLine\n"
-        "  .pln  → .json  PopLine to JSON\n"
+        "  pln to json config.pln config.json         PopLine → JSON\n"
+        "  pln from json package.json package.pln     JSON → PopLine\n"
+        "  pln validate schema.pln                    Validate only\n"
     );
 }
+
+/* ─── Entry point ────────────────────────────────────────── */
 
 int main(int argc, char **argv) {
     if (argc < 2) { usage(); return 1; }
 
-    if (strcmp(argv[1], "convert") == 0)
-        cmd_convert(argc - 2, argv + 2);
+    if (strcmp(argv[1], "to") == 0)
+        cmd_to(argc - 2, argv + 2);
+    else if (strcmp(argv[1], "from") == 0)
+        cmd_from(argc - 2, argv + 2);
     else if (strcmp(argv[1], "validate") == 0)
         cmd_validate(argc - 2, argv + 2);
     else if (strcmp(argv[1], "help") == 0 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)
