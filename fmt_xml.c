@@ -183,10 +183,33 @@ xml_start_element(void *userData, const XML_Char *name, const XML_Char **atts) {
         }
     }
 
-    /* Add to parent element if one exists on the stack */
+    /* Add to parent element; handle duplicate keys by creating array */
     if (st->stack_len > 0) {
         pln_value_t *parent = st->obj_stack[st->stack_len - 1];
-        pln_value_add_to_object(parent, name, obj);
+        /* Check if key already exists */
+        pln_value_t *existing = NULL, *prev = NULL;
+        for (pln_value_t *c = parent->child; c; prev = c, c = c->next) {
+            if (c->key && strcmp(c->key, name) == 0) { existing = c; break; }
+        }
+        if (existing) {
+            if (existing->type == PLN_ARRAY) {
+                /* Append to existing array */
+                pln_value_add_to_array(existing, obj);
+            } else {
+                /* Upgrade to array: [existing, obj] */
+                pln_value_t *arr = pln_value_new_array();
+                /* Detach existing from parent */
+                if (prev) prev->next = existing->next;
+                else parent->child = existing->next;
+                existing->next = NULL;
+                existing->key = NULL; /* key is now owned by arr context */
+                pln_value_add_to_array(arr, existing);
+                pln_value_add_to_array(arr, obj);
+                pln_value_add_to_object(parent, name, arr);
+            }
+        } else {
+            pln_value_add_to_object(parent, name, obj);
+        }
     }
 
     /* Push this element onto the stack */

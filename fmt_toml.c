@@ -323,8 +323,20 @@ static void toml_serialize_entry(toml_out_t *o, pln_value_t *v, const char *key,
     }
 }
 
+static int toml_can_dumps(pln_value_t *v) {
+    if (!v) return 1;
+    if (v->type == PLN_ARRAY) return 0; /* inline arrays not supported in dumper */
+    if (v->type == PLN_OBJECT) {
+        for (pln_value_t *c = v->child; c; c = c->next) {
+            if (!toml_can_dumps(c)) return 0;
+        }
+    }
+    return 1;
+}
+
 char *fmt_toml_dumps(pln_value_t *v) {
     if (!v || v->type != PLN_OBJECT) return NULL;
+    if (!toml_can_dumps(v)) return NULL;
     toml_out_t o;
     memset(&o, 0, sizeof(o));
     o.buf = (char *)malloc(1024);

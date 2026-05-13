@@ -133,7 +133,28 @@ pln_value_t *fmt_ini_parse(const char *text) {
             val[vl] = '\0';
         }
 
-        pln_value_t *val_obj = pln_value_new_string(val);
+        pln_value_t *val_obj;
+        /* Type detection for INI values */
+        if (strcmp(val, "true") == 0 || strcmp(val, "yes") == 0 || strcmp(val, "on") == 0)
+            val_obj = pln_value_new_bool(1);
+        else if (strcmp(val, "false") == 0 || strcmp(val, "no") == 0 || strcmp(val, "off") == 0)
+            val_obj = pln_value_new_bool(0);
+        else if (strcmp(val, "null") == 0 || strcmp(val, "none") == 0)
+            val_obj = pln_value_new_null();
+        else if ((val[0] == '-' || (val[0] >= '0' && val[0] <= '9'))) {
+            char *end;
+            if (strchr(val, '.') || strchr(val, 'e') || strchr(val, 'E')) {
+                double d = strtod(val, &end);
+                if (*end == '\0') val_obj = pln_value_new_float(d);
+                else val_obj = pln_value_new_string(val);
+            } else {
+                long long ll = strtoll(val, &end, 10);
+                if (*end == '\0') val_obj = pln_value_new_int(ll);
+                else val_obj = pln_value_new_string(val);
+            }
+        } else {
+            val_obj = pln_value_new_string(val);
+        }
         if (cur_section)
             pln_value_add_to_object(cur_section, key, val_obj);
         else
@@ -147,6 +168,29 @@ pln_value_t *fmt_ini_parse(const char *text) {
 }
 
 /* ─── Serializer: PopLine DOM → INI text ───────────────── */
+/* Check if a value tree is representable in INI format */
+static int ini_can_serialize(pln_value_t *v, int depth) {
+    if (!v) return 1;
+    switch (v->type) {
+    case PLN_STRING: case PLN_INT: case PLN_FLOAT: case PLN_BOOL: case PLN_NULL:
+        return 1;
+    case PLN_ARRAY:
+        return 0; /* INI has no array representation */
+    case PLN_OBJECT:
+        if (depth == 0) {
+            for (pln_value_t *c = v->child; c; c = c->next) {
+                if (!ini_can_serialize(c, c->type == PLN_OBJECT ? 1 : 0)) return 0;
+            }
+            return 1;
+        }
+        /* Section body or deeper: only scalar children allowed */
+        for (pln_value_t *c = v->child; c; c = c->next) {
+            if (c->type == PLN_OBJECT || c->type == PLN_ARRAY) return 0;
+        }
+        return 1;
+    }
+    return 1;
+}
 
 static void write_value(sb_t *sb, pln_value_t *v) {
     if (!v) { sb_append(sb, ""); return; }
@@ -180,6 +224,7 @@ static void write_value(sb_t *sb, pln_value_t *v) {
 
 char *fmt_ini_dumps(pln_value_t *v) {
     if (!v || v->type != PLN_OBJECT) return NULL;
+    if (!ini_can_serialize(v, 0)) return NULL;
 
     sb_t sb;
     sb_init(&sb);
