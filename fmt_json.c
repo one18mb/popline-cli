@@ -58,7 +58,7 @@ static pln_value_t *cjson_to_pl(cJSON *c) {
     return pln_value_new_null();
 }
 
-pln_value_t *pln_loads_json(const char *json) {
+pln_value_t *fmt_json_parse(const char *json) {
     cJSON *root = cJSON_Parse(json);
     if (!root) return NULL;
     pln_value_t *v = cjson_to_pl(root);
@@ -66,7 +66,7 @@ pln_value_t *pln_loads_json(const char *json) {
     return v;
 }
 
-char *pln_dumps_json(pln_value_t *v) {
+char *fmt_json_dumps(pln_value_t *v) {
     if (!v) return NULL;
     cJSON *root = pln_to_cjson(v);
     char *json = cJSON_PrintUnformatted(root);

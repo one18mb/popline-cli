@@ -3,11 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "popline.h"
-#include "popline_json.h"
 #include "fmt_ini.h"
 #include "fmt_yaml.h"
 #include "fmt_toml.h"
-/* XML uses expat — may not be available on all platforms */
+#include "fmt_json.h"
 #if __has_include(<expat.h>)
   #include "fmt_xml.h"
   #define HAVE_XML 1
@@ -54,7 +53,7 @@ static void cmd_to(int argc, char **argv) {
 
     char *out = NULL;
     if (strcmp(fmt, "json") == 0) {
-        out = pln_dumps_json(v);
+        out = fmt_json_dumps(v);
     } else if (strcmp(fmt, "yaml") == 0) {
         out = fmt_yaml_dumps(v);
     } else if (strcmp(fmt, "toml") == 0) {
@@ -98,7 +97,7 @@ static void cmd_from(int argc, char **argv) {
 
     pln_value_t *v = NULL;
     if (strcmp(fmt, "json") == 0) {
-        v = pln_loads_json(data);
+        v = fmt_json_parse(data);
     } else if (strcmp(fmt, "yaml") == 0) {
         v = fmt_yaml_parse(data);
     } else if (strcmp(fmt, "toml") == 0) {
