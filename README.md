@@ -48,21 +48,21 @@ name: "popline"
 version: 2
 ```
 
-## 性能
-
-17011 B JSON → 13076 B PopLine（**76.9%**），转换耗时微秒级。
-
 ## 文件
 
 | 文件 | 说明 |
 |------|------|
-| `main.c` | CLI 入口（`to` 方向调 SAX，`from` 方向调 DOM） |
-| `popline_sax.c` | SAX 解析器（共享于 popline-c） |
-| `sax_formats.c` | SAX 格式转换器（共享于 popline-c） |
-| `fmt_json.c` | DOM 格式转换（共享于 popline-c） |
+| `main.c` | CLI 入口（`to` 调 SAX，`from` 调 DOM） |
+| `popline_sax.c` | SAX 解析器 |
+| `sax_formats.c` | SAX 格式转换（`sax_to_json/yaml/...`） |
+| `fmt_json.c` | JSON → PopLine DOM 解析 |
+| `fmt_yaml.c` | YAML → PopLine DOM 解析 |
+| `fmt_toml.c` | TOML → PopLine DOM 解析 |
+| `fmt_ini.c` | INI → PopLine DOM 解析 |
+| `fmt_xml.c` | XML → PopLine DOM 解析（依赖 expat） |
 | `popline.c` | PopLine 核心 |
 | `popline_parser.c` | DOM 解析器 |
-| `cjson/cJSON.c` | cJSON 库（内置） |
+| `cjson/cJSON.c` | cJSON 库（内置，仅 JSON 解析使用） |
 
 ## 致谢
 本项目的开发得到了以下 AI 工具的大力协助：
