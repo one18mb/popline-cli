@@ -1,8 +1,12 @@
-/* popline-cli — `pln` command: multi-format converter & validator */
+/* popline-cli — `pln` command: multi-format converter & validator
+ * Parsing: uses SAX interface (popline_sax.c) — no intermediate DOM.
+ * From-format: DOM-based (external parsers produce pln_value_t). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "popline.h"
+#include "popline_sax.h"
+#include "sax_formats.h"
 #include "fmt_ini.h"
 #include "fmt_yaml.h"
 #include "fmt_toml.h"
@@ -35,6 +39,7 @@ static void write_file(const char *path, const char *data, int len) {
 }
 
 /* ─── pln to <format> <in.pln> <out.ext> ───────────────── */
+/* Uses SAX-based converters (zero DOM, single pass) */
 
 static void cmd_to(int argc, char **argv) {
     if (argc < 3) {
@@ -47,37 +52,34 @@ static void cmd_to(int argc, char **argv) {
 
     int len;
     char *data = read_file(inpath, &len);
-    pln_value_t *v = pln_loads(data);
-    free(data);
-    if (!v) { fprintf(stderr, "error: invalid PopLine\n"); exit(1); }
 
     char *out = NULL;
     if (strcmp(fmt, "json") == 0) {
-        out = fmt_json_dumps(v);
+        out = sax_to_json(data);
     } else if (strcmp(fmt, "yaml") == 0) {
-        out = fmt_yaml_dumps(v);
+        out = sax_to_yaml(data);
     } else if (strcmp(fmt, "toml") == 0) {
-        out = fmt_toml_dumps(v);
+        out = sax_to_toml(data);
     } else if (strcmp(fmt, "ini") == 0) {
-        out = fmt_ini_dumps(v);
+        out = sax_to_ini(data);
     } else if (strcmp(fmt, "xml") == 0) {
 #ifdef HAVE_XML
-        out = fmt_xml_dumps(v);
+        out = sax_to_xml(data);
 #else
         fprintf(stderr, "error: XML not available on this platform\n");
-        pln_value_free(v); exit(1);
+        free(data); exit(1);
 #endif
     } else {
         fprintf(stderr, "error: unknown format '%s'\n", fmt);
         fprintf(stderr, "supported formats: json, yaml, toml, ini, xml\n");
-        pln_value_free(v);
+        free(data);
         exit(1);
     }
 
+    free(data);
     if (!out) { fprintf(stderr, "error: conversion failed\n"); exit(1); }
     write_file(outpath, out, (int)strlen(out));
     free(out);
-    pln_value_free(v);
     printf("converted %s → %s\n", inpath, outpath);
 }
 
@@ -130,6 +132,9 @@ static void cmd_from(int argc, char **argv) {
 }
 
 /* ─── pln validate <file> ────────────────────────────────── */
+/* Uses SAX parser (no DOM allocated) */
+
+static int noop_cb(const pln_sax_ev_t *ev, void *user) { (void)ev; (void)user; return 0; }
 
 static void cmd_validate(int argc, char **argv) {
     if (argc < 1) {
@@ -138,10 +143,9 @@ static void cmd_validate(int argc, char **argv) {
     }
     int len;
     char *data = read_file(argv[0], &len);
-    pln_value_t *v = pln_loads(data);
+    int ok = (pln_sax_parse(data, noop_cb, NULL) == 0);
     free(data);
-    if (!v) { fprintf(stderr, "invalid\n"); exit(1); }
-    pln_value_free(v);
+    if (!ok) { fprintf(stderr, "invalid\n"); exit(1); }
     printf("valid\n");
 }
 
