@@ -1,30 +1,6 @@
-/* popline_json.c — PopLine ↔ JSON bidirectional conversion */
+/* popline_json.c — JSON → PopLine DOM conversion (parse only) */
 #include "popline.h"
 #include <cjson/cJSON.h>
-
-static cJSON *pln_to_cjson(pln_value_t *v) {
-    if (!v) return cJSON_CreateNull();
-    switch (v->type) {
-    case PLN_NULL:   return cJSON_CreateNull();
-    case PLN_BOOL:   return cJSON_CreateBool(v->data.bool_val);
-    case PLN_INT:    return cJSON_CreateNumber((double)v->data.int_val);
-    case PLN_FLOAT:  return cJSON_CreateNumber(v->data.float_val);
-    case PLN_STRING: return cJSON_CreateString(v->data.string_val);
-    case PLN_OBJECT: {
-        cJSON *obj = cJSON_CreateObject();
-        for (pln_value_t *c = v->child; c; c = c->next)
-            cJSON_AddItemToObject(obj, c->key ? c->key : "", pln_to_cjson(c));
-        return obj;
-    }
-    case PLN_ARRAY: {
-        cJSON *arr = cJSON_CreateArray();
-        for (pln_value_t *c = v->child; c; c = c->next)
-            cJSON_AddItemToArray(arr, pln_to_cjson(c));
-        return arr;
-    }
-    }
-    return cJSON_CreateNull();
-}
 
 static pln_value_t *cjson_to_pl(cJSON *c) {
     if (!c) return NULL;
@@ -66,10 +42,3 @@ pln_value_t *fmt_json_parse(const char *json) {
     return v;
 }
 
-char *fmt_json_dumps(pln_value_t *v) {
-    if (!v) return NULL;
-    cJSON *root = pln_to_cjson(v);
-    char *json = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return json;
-}
