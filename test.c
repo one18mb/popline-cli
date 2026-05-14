@@ -442,8 +442,8 @@ int main(void) {
     unit_edge();
     unit_json_conversion();
 
-    test_real_data_consistency("test-package.json", "test-package.pln");
-    bench_real_data("test-package.json", "test-package.pln");
+    test_real_data_consistency("test.json", "test.pln");
+    bench_real_data("test.json", "test.pln");
 
     printf("\n──────────────────────\n");
     printf("%d/%d 通过, %d 失败\n", passed, total, total - passed);

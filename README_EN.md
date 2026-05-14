@@ -25,7 +25,7 @@ Requires: `gcc` only. No external libraries (cJSON bundled).
 
 ```bash
 # JSON → PopLine (23% smaller)
-pln convert test-package.json test-package.pln
+pln convert test.json test.pln
 
 # PopLine → JSON
 pln convert config.pln config.json

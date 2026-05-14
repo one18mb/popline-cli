@@ -170,7 +170,7 @@ static void usage(void) {
         "\n"
         "Examples:\n"
         "  pln to json config.pln config.json         PopLine → JSON\n"
-        "  pln from json test-package.json test-package.pln     JSON → PopLine\n"
+        "  pln from json test.json test.pln     JSON → PopLine\n"
         "  pln validate schema.pln                    Validate only\n"
     );
 }

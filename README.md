@@ -23,7 +23,7 @@ sudo cp pln /usr/local/bin/
 pln to json config.pln config.json
 
 # JSON → PopLine（pln_value_t DOM → pln_dumps）
-pln from json test-package.json test-package.pln
+pln from json test.json test.pln
 
 # 校验（SAX 解析，不构建 DOM）
 pln validate schema.pln
